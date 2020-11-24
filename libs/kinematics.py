@@ -443,7 +443,7 @@ def walk(sim_time, duration=1, direction=0, robot_height=0, step_height=0):
     return leg_1, leg_2, leg_3, leg_4, leg_5, leg_6
 
 
-def walk_turn(sim_time, duration=1, direction=0, robot_height=0, step_height=0):
+def walk_turn(sim_time, duration=1, direction=0, rotation=0, robot_height=0, step_height=0):
 
     right_legs_offset = 0.02
     left_legs_offset = -0.02
@@ -456,29 +456,29 @@ def walk_turn(sim_time, duration=1, direction=0, robot_height=0, step_height=0):
     first_group_time = sim_time
     second_group_time = first_group_time+(duration/2)
 
-    leg_1 = new_trangle_walk(first_group_time, duration=duration, direction=direction, legs_offset=right_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=0)
-    leg_2 = new_trangle_walk(second_group_time, duration=duration, direction=direction, legs_offset=left_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=1)
-    leg_3 = new_trangle_walk(first_group_time, duration=duration, direction=0, legs_offset=left_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=2)
-    leg_4 = new_trangle_walk(second_group_time, duration=duration, direction=-direction, legs_offset=left_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=3)
-    leg_5 = new_trangle_walk(first_group_time, duration=duration, direction=-direction, legs_offset=right_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=4)
-    leg_6 = new_trangle_walk(second_group_time, duration=duration, direction=0, legs_offset=right_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=5)
+    leg_1 = new_trangle_walk(first_group_time, duration=duration,   direction=direction,      legs_offset=right_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=0)
+    leg_2 = new_trangle_walk(second_group_time, duration=duration,  direction=direction,     legs_offset=left_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=1)
+    leg_3 = new_trangle_walk(first_group_time, duration=duration,   direction=0,              legs_offset=left_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=2)
+    leg_4 = new_trangle_walk(second_group_time, duration=duration,  direction=-direction,    legs_offset=left_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=3)
+    leg_5 = new_trangle_walk(first_group_time, duration=duration,   direction=-direction,     legs_offset=right_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=4)
+    leg_6 = new_trangle_walk(second_group_time, duration=duration,  direction=0,             legs_offset=right_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=5)
 
     return leg_1, leg_2, leg_3, leg_4, leg_5, leg_6
 
 
-def rotate(t, d, angle):
+def rotate(t, duration=3):
 
     orient = False
 
     right_group = 0.10
     left_group = right_group
 
-    leg_1 = triangle(right_group, -0.167, 0.05, 0.1, t+d/2, d, orient, 0)
-    leg_2 = triangle(left_group, -0.167, 0.05, 0.1, t, d, orient, 1)
-    leg_3 = triangle(left_group, -0.167, 0.05, 0.1, t+d/2, d, orient, 2)
-    leg_4 = triangle(left_group, -0.167, 0.05, 0.1, t, d, orient, 3)
-    leg_5 = triangle(right_group, -0.167, 0.05, 0.1, t+d/2, d, orient, 4)
-    leg_6 = triangle(right_group, -0.167, 0.05, 0.1, t, d, orient, 5)
+    leg_1 = triangle(right_group, -0.167, 0.05, 0.1, t+duration/2, duration, orient, 0)
+    leg_2 = triangle(left_group, -0.167, 0.05, 0.1, t, duration, orient, 1)
+    leg_3 = triangle(left_group, -0.167, 0.05, 0.1, t+duration/2, duration, orient, 2)
+    leg_4 = triangle(left_group, -0.167, 0.05, 0.1, t, duration, orient, 3)
+    leg_5 = triangle(right_group, -0.167, 0.05, 0.1, t+duration/2, duration, orient, 4)
+    leg_6 = triangle(right_group, -0.167, 0.05, 0.1, t, duration, orient, 5)
 
     return leg_1, leg_2, leg_3, leg_4, leg_5, leg_6
 

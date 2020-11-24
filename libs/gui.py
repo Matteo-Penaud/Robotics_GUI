@@ -12,6 +12,8 @@ walking_speed = 1
 
 walk_label = tk.DoubleVar()
 
+robotMode = 'Walk'
+
 def start_simulation(event=tk.Event):
     global do_sim_tick
     do_sim_tick = not do_sim_tick
@@ -40,6 +42,16 @@ def change_direction(event=tk.Event):
     elif event.keysym == 'KP_9':
         walking_direction.set(7*math.pi/4)
 
+def change_mode(event=tk.Event):
+    global robotMode
+    
+    if event.keysym == 'r':
+        robotMode = 'Rotate'
+    elif event.keysym == 'w':
+        robotMode = 'Walk'
+
+    print(event)
+
 
 main_window.bind('<Return>', start_simulation)
 
@@ -51,6 +63,9 @@ main_window.bind('<KP_6>', change_direction)
 main_window.bind('<KP_7>', change_direction)
 main_window.bind('<KP_8>', change_direction)
 main_window.bind('<KP_9>', change_direction)
+
+main_window.bind_all('<r>', change_mode)
+main_window.bind_all('<w>', change_mode)
 
 start_sim_button = ttk.Button(main_window, text="Start Simulation", command=lambda: start_simulation())
 walk_speed_entry = tk.Scale(main_window, from_=0.5, to=3, resolution=0.1, variable=walk_label, orient='horizontal')
@@ -74,4 +89,7 @@ while True:
     main_window.update()
 
     if do_sim_tick == True:
-        simhexa.walk(sim, targets, speed=float(walk_speed_entry.get()), direction=float(walking_direction.get()), robot_height=float(robot_height.get()), step_height=float(step_height.get()))
+        if robotMode == 'Walk':
+            simhexa.walk(sim, targets, speed=float(walk_speed_entry.get()), direction=float(walking_direction.get()), robot_height=float(robot_height.get()), step_height=float(step_height.get()))
+        elif robotMode == 'Rotate':
+            simhexa.rotate(sim, targets)
