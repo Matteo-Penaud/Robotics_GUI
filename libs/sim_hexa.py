@@ -4,6 +4,7 @@ import sys
 import os
 import time
 import argparse
+from numpy.testing._private.parameterized import param
 import pybullet as p
 from onshape_to_robot.simulation import Simulation
 from scipy.spatial.transform import rotation
@@ -14,6 +15,20 @@ from constants import *
 from scipy.spatial.transform import Rotation
 
 from kinematics import computeDK
+
+class Parameters:
+    def __init__(self):
+        self.legs = []
+        self.legs.append(["j_c1_rf", "j_thigh_rf", "j_tibia_rf"])
+        self.legs.append(["j_c1_lf", "j_thigh_lf", "j_tibia_lf"])
+        self.legs.append(["j_c1_lm", "j_thigh_lm", "j_tibia_lm"])
+        self.legs.append(["j_c1_lr", "j_thigh_lr", "j_tibia_lr"])
+        self.legs.append(["j_c1_rr", "j_thigh_rr", "j_tibia_rr"])
+        self.legs.append(["j_c1_rm", "j_thigh_rm", "j_tibia_rm"])
+
+params = Parameters()
+
+global sim
 
 def to_pybullet_quaternion(roll, pitch, yaw, degrees=False):
     # q = Quaternion.from_euler(roll, pitch, yaw, degrees=degrees)
@@ -28,6 +43,8 @@ def to_pybullet_quaternion(roll, pitch, yaw, degrees=False):
     return rot_quat
 
 def init_simulation():
+    global sim
+
     # m_friction
     controls = {}
     robotPath = "phantomx_description/urdf/phantomx.urdf"
@@ -47,46 +64,74 @@ def init_simulation():
     return controls, sim, pos, leg_center_pos, leg_angle, targets
 
 
-def reset_robot(sim):
+def reset_robot(sim, targets):
+    global params
     sim.setRobotPose([0, 0, 0.5], [0, 0, 0, 1])
 
+    for i in range(0, 6):
+        for j in range(0, 3):
+            targets[params.legs[i][j]] = 0
 
-def walk(sim, targets, speed=1, direction=0, robot_height=0, step_height=0):
-        alphas = kinematics.walk_turn(sim.t, duration=speed, direction=direction, robot_height=robot_height, step_height=step_height)
+    state = sim.setJoints(targets)
+    sim.tick()
 
-        targets["j_c1_rf"] = alphas[0][0]
-        targets["j_thigh_rf"] = alphas[0][1]
-        targets["j_tibia_rf"] = alphas[0][2]
 
-        targets["j_c1_lf"] = alphas[1][0]
-        targets["j_thigh_lf"] = alphas[1][1]
-        targets["j_tibia_lf"] = alphas[1][2]
+def walk(sim, targets, speed=1, direction=0, robot_height=0, step_height=0, debug=False, frozen=0):
+        global params
 
-        targets["j_c1_lm"] = alphas[2][0]
-        targets["j_thigh_lm"] = alphas[2][1]
-        targets["j_tibia_lm"] = alphas[2][2]
+        alphas = kinematics.walk(sim.t, duration=speed, direction=direction, robot_height=robot_height, step_height=step_height)
 
-        targets["j_c1_lr"] = alphas[3][0]
-        targets["j_thigh_lr"] = alphas[3][1]
-        targets["j_tibia_lr"] = alphas[3][2]
+        #alphas_rot = kinematics.rotation(sim.t, duration=speed, direction=direction, robot_height=robot_height, step_height=step_height)
 
-        targets["j_c1_rr"] = alphas[4][0]
-        targets["j_thigh_rr"] = alphas[4][1]
-        targets["j_tibia_rr"] = alphas[4][2]
+        targets["j_c1_rf"] = alphas[0][0] #+ alphas_rot[0][0]
+        targets["j_thigh_rf"] = alphas[0][1] #+ alphas_rot[0][1]
+        targets["j_tibia_rf"] = alphas[0][2] #+ alphas_rot[0][2]
 
-        targets["j_c1_rm"] = alphas[5][0]
-        targets["j_thigh_rm"] = alphas[5][1]
-        targets["j_tibia_rm"] = alphas[5][2]
+        targets["j_c1_lf"] = alphas[1][0] #+ alphas_rot[1][0]
+        targets["j_thigh_lf"] = alphas[1][1] #+ alphas_rot[1][1]
+        targets["j_tibia_lf"] = alphas[1][2] #+ alphas_rot[1][2]
+
+        targets["j_c1_lm"] = alphas[2][0] #+ alphas_rot[2][0]
+        targets["j_thigh_lm"] = alphas[2][1] #+ alphas_rot[2][1]
+        targets["j_tibia_lm"] = alphas[2][2] #+ alphas_rot[2][2]
+
+        targets["j_c1_lr"] = alphas[3][0] #+ alphas_rot[3][0]
+        targets["j_thigh_lr"] = alphas[3][1] #+ alphas_rot[3][1]
+        targets["j_tibia_lr"] = alphas[3][2] #+ alphas_rot[3][2]
+
+        targets["j_c1_rr"] = alphas[4][0] #+ alphas_rot[4][0]
+        targets["j_thigh_rr"] = alphas[4][1] #+ alphas_rot[4][1]
+        targets["j_tibia_rr"] = alphas[4][2] #+ alphas_rot[4][2]
+
+        targets["j_c1_rm"] = alphas[5][0] #+ alphas_rot[5][0]
+        targets["j_thigh_rm"] = alphas[5][1] #+ alphas_rot[5][1]
+        targets["j_tibia_rm"] = alphas[5][2] #+ alphas_rot[5][2]
         
         robot_position = sim.getRobotPose()
 
-        #sim.setRobotPose([0, 0, 0.5], [0, 0, 0, 1])
-
         sim.lookAt(robot_position[0])
         state = sim.setJoints(targets)
+
+        if debug:
+            if 0 < math.fmod(sim.t, 0.05) < 0.02:
+                for leg_id in range(0, 6):
+                    pos = kinematics.computeDK(state[params.legs[leg_id][0]][0], state[params.legs[leg_id][1]][0], state[params.legs[leg_id][2]][0])
+                    pos = kinematics.rotaton_2D(pos[0], pos[1], pos[2], LEG_ANGLES[leg_id]+robot_position[1][2])
+
+                    new_centers = kinematics.rotaton_2D(LEG_CENTER_POS[leg_id][0], LEG_CENTER_POS[leg_id][1], LEG_CENTER_POS[leg_id][2], robot_position[1][2])
+
+                    pos[0] += new_centers[0] + robot_position[0][0]
+                    pos[1] += new_centers[1] + robot_position[0][1]
+                    pos[2] += new_centers[2] + robot_position[0][2]
+
+                    sim.addDebugPosition(pos, duration=1.5)
+
+        if frozen == 1:
+            sim.setRobotPose([0, 0, 0.5], [0, 0, 0, 1])
+
         sim.tick()
 
-def rotate(sim, targets):
+def rotate(sim, targets, debug=False, frozen=0):
 
         alphas = kinematics.rotate(sim.t, duration=3)
 
@@ -113,301 +158,57 @@ def rotate(sim, targets):
         targets["j_c1_rm"] = alphas[5][0]
         targets["j_thigh_rm"] = alphas[5][1]
         targets["j_tibia_rm"] = alphas[5][2]
-        
-        #sim.setRobotPose([0, 0, 0.5], [0, 0, 0, 1])
-        # for leg in range(6):
-        #     robpos = sim.getRobotPose()
-        #     position = kinematics.computeDK(alphas[leg][0], alphas[leg][1], alphas[leg][2])
-        #     position = kinematics.rotaton_2D(position[0], position[1], position[2], LEG_ANGLES[leg])
-        #     position[0] += LEG_CENTER_POS[leg][0] + robpos[0][0]
-        #     position[1] += LEG_CENTER_POS[leg][1] + robpos[0][1]
-        #     position[2] += LEG_CENTER_POS[leg][2] + robpos[0][2]
-        #     positions[leg] = position
-    
-        # for position in positions:
-        #     sim.addDebugPosition(position, duration=1.5)
+
+        robot_position = sim.getRobotPose()
 
         state = sim.setJoints(targets)
+        
+        if debug:
+            if 0 < math.fmod(sim.t, 0.05) < 0.02:
+                for leg_id in range(0, 6):
+                    pos = kinematics.computeDK(state[params.legs[leg_id][0]][0], state[params.legs[leg_id][1]][0], state[params.legs[leg_id][2]][0])
+                    pos = kinematics.rotaton_2D(pos[0], pos[1], pos[2], LEG_ANGLES[leg_id]+robot_position[1][2])
+
+                    new_centers = kinematics.rotaton_2D(LEG_CENTER_POS[leg_id][0], LEG_CENTER_POS[leg_id][1], LEG_CENTER_POS[leg_id][2], robot_position[1][2])
+
+                    pos[0] += new_centers[0] + robot_position[0][0]
+                    pos[1] += new_centers[1] + robot_position[0][1]
+                    pos[2] += new_centers[2] + robot_position[0][2]
+
+                    sim.addDebugPosition(pos, duration=1.5)
+
+        if frozen == 1:
+            sim.setRobotPose([0, 0, 0.5], [0, 0, 0, 1])
+
         sim.tick()
 
+def static(sim, targets, legID=0, leg_target_x=0, leg_target_y=0, leg_target_z=0, debug=False, frozen=0):
+        global params
 
-# while True:
-#     targets = {}
-#     for name in sim.getJoints():
-#         if "c1" in name or "thigh" in name or "tibia" in name:
-#             targets[name] = 0
-#     if args.mode == "frozen-direct":
-#         for name in controls.keys():
-#             targets[name] = p.readUserDebugParameter(controls[name])
-#         points = kinematics.computeDKDetailed(
-#             targets["j_c1_rf"],
-#             targets["j_thigh_rf"],
-#             targets["j_tibia_rf"],
-#             use_rads=True,
-#         )
-#         i = -1
-#         T = []
-#         for pt in points:
-#             # Drawing each step of the DK calculation
-#             i += 1
-#             T.append(kinematics.rotaton_2D(pt[0], pt[1], pt[2], leg_angle))
-#             T[-1][0] += leg_center_pos[0]
-#             T[-1][1] += leg_center_pos[1]
-#             T[-1][2] += leg_center_pos[2]
-#             # print("Drawing cross {} at {}".format(i, T))
-#             p.resetBasePositionAndOrientation(
-#                 crosses[i], T[-1], to_pybullet_quaternion(0, 0, leg_angle)
-#             )
+        alphas = kinematics.computeIKOriented(leg_target_x, leg_target_y, leg_target_z, legID)
 
-#         # Temp
-#         sim.setRobotPose([0, 0, 0.5], to_pybullet_quaternion(0, 0, 0))
-#         # sim.setRobotPose(
-#         #     leg_center_pos, to_pybullet_quaternion(0, 0, 0),
-#         # )
-#         state = sim.setJoints(targets)
-#     elif args.mode == "direct":
-#         for name in controls.keys():
-#             targets[name] = p.readUserDebugParameter(controls[name])
-#         state = sim.setJoints(targets)
-#     elif args.mode == "inverse":
-#         x = p.readUserDebugParameter(controls["target_x"])
-#         y = p.readUserDebugParameter(controls["target_y"])
-#         z = p.readUserDebugParameter(controls["target_z"])
-#         alphas = kinematics.computeIK(x, y, z, 0, verbose=False)
+        targets[params.legs[legID][0]] = alphas[0]
+        targets[params.legs[legID][1]] = alphas[1]
+        targets[params.legs[legID][2]] = alphas[2]
 
-#         dk0 = kinematics.computeDK(0, 0, 0, use_rads=True)
-#         targets["j_c1_rf"] = alphas[0]
-#         targets["j_thigh_rf"] = alphas[1]
-#         targets["j_tibia_rf"] = alphas[2]
-
-#         state = sim.setJoints(targets)
-#         # Temp
-#         sim.setRobotPose([0, 0, 0.5], [0, 0, 0, 1])
-
-#         T = kinematics.rotaton_2D(x, y, z, leg_angle)
-#         T[0] += leg_center_pos[0]
-#         T[1] += leg_center_pos[1]
-#         T[2] += leg_center_pos[2]
-#         # print("Drawing cross {} at {}".format(i, T))
-#         p.resetBasePositionAndOrientation(
-#             cross, T, to_pybullet_quaternion(0, 0, leg_angle)
-#         )
-
-#     elif args.mode == "spider":
-
-#         x = p.readUserDebugParameter(controls["target_x"])
-#         y = p.readUserDebugParameter(controls["target_y"])
-#         z = p.readUserDebugParameter(controls["target_z"])
-
-#         alphas = kinematics.spider(x, y, z)
-
-#         targets["j_c1_rf"] = alphas[0][0]
-#         targets["j_thigh_rf"] = alphas[0][1]
-#         targets["j_tibia_rf"] = alphas[0][2]
-
-#         targets["j_c1_lf"] = alphas[1][0]
-#         targets["j_thigh_lf"] = alphas[1][1]
-#         targets["j_tibia_lf"] = alphas[1][2]
-
-#         targets["j_c1_lm"] = alphas[2][0]
-#         targets["j_thigh_lm"] = alphas[2][1]
-#         targets["j_tibia_lm"] = alphas[2][2]
-
-#         targets["j_c1_lr"] = alphas[3][0]
-#         targets["j_thigh_lr"] = alphas[3][1]
-#         targets["j_tibia_lr"] = alphas[3][2]
-
-#         targets["j_c1_rr"] = alphas[4][0]
-#         targets["j_thigh_rr"] = alphas[4][1]
-#         targets["j_tibia_rr"] = alphas[4][2]
-
-#         targets["j_c1_rm"] = alphas[5][0]
-#         targets["j_thigh_rm"] = alphas[5][1]
-#         targets["j_tibia_rm"] = alphas[5][2]
-
-#         for leg in range(6):
-#             robpos = sim.getRobotPose()
-#             position = kinematics.computeDK(alphas[leg][0], alphas[leg][1], alphas[leg][2])
-#             position = kinematics.rotaton_2D(position[0], position[1], position[2], LEG_ANGLES[leg])
-#             position[0] += LEG_CENTER_POS[leg][0] + robpos[0][0]
-#             position[1] += LEG_CENTER_POS[leg][1] + robpos[0][1]
-#             position[2] += LEG_CENTER_POS[leg][2] + robpos[0][2]
-#             positions[leg] = position
-    
-#         for position in positions:
-#             sim.addDebugPosition(position, duration=1.5)
-
-#         state = sim.setJoints(targets)
-#         #sim.setRobotPose([0, 0, 0.5], [0, 0, 0, 1])
-
-#     elif args.mode == "walk":
-
-#         #entryTime = time.time() - sim_start_time
-
-#         speed = p.readUserDebugParameter(controls["Speed"])
-
-#         alphas = kinematics.walk(sim.t, speed)
-
-#         targets["j_c1_rf"] = alphas[0][0]
-#         targets["j_thigh_rf"] = alphas[0][1]
-#         targets["j_tibia_rf"] = alphas[0][2]
-
-#         targets["j_c1_lf"] = alphas[1][0]
-#         targets["j_thigh_lf"] = alphas[1][1]
-#         targets["j_tibia_lf"] = alphas[1][2]
-
-#         targets["j_c1_lm"] = alphas[2][0]
-#         targets["j_thigh_lm"] = alphas[2][1]
-#         targets["j_tibia_lm"] = alphas[2][2]
-
-#         targets["j_c1_lr"] = alphas[3][0]
-#         targets["j_thigh_lr"] = alphas[3][1]
-#         targets["j_tibia_lr"] = alphas[3][2]
-
-#         targets["j_c1_rr"] = alphas[4][0]
-#         targets["j_thigh_rr"] = alphas[4][1]
-#         targets["j_tibia_rr"] = alphas[4][2]
-
-#         targets["j_c1_rm"] = alphas[5][0]
-#         targets["j_thigh_rm"] = alphas[5][1]
-#         targets["j_tibia_rm"] = alphas[5][2]
-
-#         # for leg in range(6):
-#         #     robpos = sim.getRobotPose()
-#         #     position = kinematics.computeDK(alphas[leg][0], alphas[leg][1], alphas[leg][2])
-#         #     position = kinematics.rotaton_2D(position[0], position[1], position[2], LEG_ANGLES[leg])
-#         #     position[0] += LEG_CENTER_POS[leg][0] + robpos[0][0]
-#         #     position[1] += LEG_CENTER_POS[leg][1] + robpos[0][1]
-#         #     position[2] += LEG_CENTER_POS[leg][2] + robpos[0][2]
-#         #     positions[leg] = position
-    
-#         # for position in positions:
-#         #     sim.addDebugPosition(position, duration=1.5)
+        robot_position = sim.getRobotPose()
+        state = sim.setJoints(targets)
         
-#         state = sim.setJoints(targets)
+        if debug:
+            if 0 < math.fmod(sim.t, 0.05) < 0.02:
+                pos = kinematics.computeDK(state[params.legs[legID][0]][0], state[params.legs[legID][1]][0], state[params.legs[legID][2]][0])
+                pos = kinematics.rotaton_2D(pos[0], pos[1], pos[2], LEG_ANGLES[legID]+robot_position[1][2])
 
-#         # sim.setRobotPose([0, 0, 0.5], [0, 0, 0, 1])
+                new_centers = kinematics.rotaton_2D(LEG_CENTER_POS[legID][0], LEG_CENTER_POS[legID][1], LEG_CENTER_POS[legID][2], robot_position[1][2])
 
-#         # leavingTime = time.time() - sim_start_time
+                pos[0] += new_centers[0] + robot_position[0][0]
+                pos[1] += new_centers[1] + robot_position[0][1]
+                pos[2] += new_centers[2] + robot_position[0][2]
 
-#         # frequency = 1/(leavingTime - entryTime)
+                sim.addDebugPosition(pos, duration=1.5)
 
-#         # print("Entry at : {:.5}s, leaving at : {:.5}s".format(entryTime, leavingTime))
-#         # print("Frequency of {:.5} Hz\n".format(frequency))
+        sim.lookAt(robot_position[0])
 
-
-#     elif args.mode == "rotate":
-
-#         alphas = kinematics.rotate(sim.t, 3, 90)
-
-#         targets["j_c1_rf"] = alphas[0][0]
-#         targets["j_thigh_rf"] = alphas[0][1]
-#         targets["j_tibia_rf"] = alphas[0][2]
-
-#         targets["j_c1_lf"] = alphas[1][0]
-#         targets["j_thigh_lf"] = alphas[1][1]
-#         targets["j_tibia_lf"] = alphas[1][2]
-
-#         targets["j_c1_lm"] = alphas[2][0]
-#         targets["j_thigh_lm"] = alphas[2][1]
-#         targets["j_tibia_lm"] = alphas[2][2]
-
-#         targets["j_c1_lr"] = alphas[3][0]
-#         targets["j_thigh_lr"] = alphas[3][1]
-#         targets["j_tibia_lr"] = alphas[3][2]
-
-#         targets["j_c1_rr"] = alphas[4][0]
-#         targets["j_thigh_rr"] = alphas[4][1]
-#         targets["j_tibia_rr"] = alphas[4][2]
-
-#         targets["j_c1_rm"] = alphas[5][0]
-#         targets["j_thigh_rm"] = alphas[5][1]
-#         targets["j_tibia_rm"] = alphas[5][2]
-        
-#         #sim.setRobotPose([0, 0, 0.5], [0, 0, 0, 1])
-
-#         state = sim.setJoints(targets)
-
-#     elif args.mode == "test-all":
-
-#         x = p.readUserDebugParameter(controls["target_x"])
-#         y = p.readUserDebugParameter(controls["target_y"])
-#         z = p.readUserDebugParameter(controls["target_z"])
-
-#         alphas = kinematics.testPos(x, y, z)
-
-#         targets["j_c1_rf"] = alphas[0][0]
-#         targets["j_thigh_rf"] = alphas[0][1]
-#         targets["j_tibia_rf"] = alphas[0][2]
-
-#         targets["j_c1_lf"] = alphas[1][0]
-#         targets["j_thigh_lf"] = alphas[1][1]
-#         targets["j_tibia_lf"] = alphas[1][2]
-
-#         targets["j_c1_lm"] = alphas[2][0]
-#         targets["j_thigh_lm"] = alphas[2][1]
-#         targets["j_tibia_lm"] = alphas[2][2]
-
-#         targets["j_c1_lr"] = alphas[3][0]
-#         targets["j_thigh_lr"] = alphas[3][1]
-#         targets["j_tibia_lr"] = alphas[3][2]
-
-#         targets["j_c1_rr"] = alphas[4][0]
-#         targets["j_thigh_rr"] = alphas[4][1]
-#         targets["j_tibia_rr"] = alphas[4][2]
-
-#         targets["j_c1_rm"] = alphas[5][0]
-#         targets["j_thigh_rm"] = alphas[5][1]
-#         targets["j_tibia_rm"] = alphas[5][2]
-
-#         for leg in range(0, 6, 1):
-#             pos = kinematics.computeDK(alphas[leg][0], alphas[leg][1], alphas[leg][2])
-#             pos = kinematics.rotaton_2D(pos[0], pos[1], pos[2], LEG_ANGLES[leg])
-#             pos[0] += LEG_CENTER_POS[leg][0]
-#             pos[1] += LEG_CENTER_POS[leg][1]
-#             pos[2] += LEG_CENTER_POS[leg][2] + 0.5
-#             sim.addDebugPosition(pos, duration=3)
-
-#         state = sim.setJoints(targets)
-
-#         sim.setRobotPose([0, 0, 0.5], [0, 0, 0, 1])
-        
-
-#     elif args.mode == "test-line":
-
-#         x = p.readUserDebugParameter(controls["target_x"])
-#         y = p.readUserDebugParameter(controls["target_y"])
-#         z = p.readUserDebugParameter(controls["target_z"])
-
-#         alphas = kinematics.testLine(x, y, z)
-
-#         targets["j_c1_rf"] = alphas[0][0]
-#         targets["j_thigh_rf"] = alphas[0][1]
-#         targets["j_tibia_rf"] = alphas[0][2]
-
-#         targets["j_c1_lf"] = alphas[1][0]
-#         targets["j_thigh_lf"] = alphas[1][1]
-#         targets["j_tibia_lf"] = alphas[1][2]
-
-#         targets["j_c1_lm"] = alphas[2][0]
-#         targets["j_thigh_lm"] = alphas[2][1]
-#         targets["j_tibia_lm"] = alphas[2][2]
-
-#         targets["j_c1_lr"] = alphas[3][0]
-#         targets["j_thigh_lr"] = alphas[3][1]
-#         targets["j_tibia_lr"] = alphas[3][2]
-
-#         targets["j_c1_rr"] = alphas[4][0]
-#         targets["j_thigh_rr"] = alphas[4][1]
-#         targets["j_tibia_rr"] = alphas[4][2]
-
-#         targets["j_c1_rm"] = alphas[5][0]
-#         targets["j_thigh_rm"] = alphas[5][1]
-#         targets["j_tibia_rm"] = alphas[5][2]
-
-#         state = sim.setJoints(targets)
-
-#         sim.setRobotPose([0, 0, 0.5], [0, 0, 0, 1])
-
-#     sim.tick()
-
+        if frozen == 1:
+            sim.setRobotPose([0, 0, 0.5], [0, 0, 0, 1])
+        sim.tick()
