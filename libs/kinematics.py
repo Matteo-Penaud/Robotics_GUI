@@ -362,7 +362,7 @@ def triangle_walk(x, z, h, w, t, duration=3, oriented=True, legID=0, offset=0, d
         return segment(0+offset, y, h, x_min, y, z, t, seg_duration, 'triangle', oriented, legID, direction=direction)
 
 
-def new_triangle_walk(sim_time, duration=1, direction=0, legs_offset=0, robot_height=0.05, step_lenght=0, step_height=0, legID=0):
+def new_triangle_walk(sim_time, duration=1, direction=0, legs_offset=0, robot_height=0.05, step_lenght=0, step_height=0, legID=0, oriented=True):
     seg_duration = duration / 2
 
     new_time = math.fmod(sim_time, duration)
@@ -373,11 +373,11 @@ def new_triangle_walk(sim_time, duration=1, direction=0, legs_offset=0, robot_he
     x_max = step_lenght/2
 
     if 0 <= new_time <= seg_duration:
-        return segment(x_max, legs_offset, robot_height, x_min, legs_offset, robot_height, sim_time, seg_duration, mode='triangle', legID=legID, direction=direction, oriented=True)
+        return segment(x_max, legs_offset, robot_height, x_min, legs_offset, robot_height, sim_time, seg_duration, mode='triangle', legID=legID, direction=direction, oriented=oriented)
     if seg_duration <= new_time <= 1.5*seg_duration:
-        return segment(x_min, legs_offset, robot_height, 0, legs_offset, step_height, sim_time, seg_duration/2, mode='triangle', legID=legID, direction=direction, oriented=True)
+        return segment(x_min, legs_offset, robot_height, 0, legs_offset, step_height, sim_time, seg_duration/2, mode='triangle', legID=legID, direction=direction, oriented=oriented)
     if 1.5*seg_duration <= new_time <= duration:
-        return segment(0, legs_offset, step_height, x_max, legs_offset, robot_height, sim_time, seg_duration/2, mode='triangle', legID=legID, direction=direction, oriented=True)
+        return segment(0, legs_offset, step_height, x_max, legs_offset, robot_height, sim_time, seg_duration/2, mode='triangle', legID=legID, direction=direction, oriented=oriented)
 
 
 def rotation_new(x, y, z, duration=1):
@@ -426,11 +426,11 @@ def spider(x, y, z):
 
     f = 0.5
 
-    offsets = [0, 0, 0.05]
+    offsets = [0, 0, 0]
 
-    x = -x * math.sin(2*math.pi*f*time.time())
-    y = -y * math.cos(2*math.pi*f*time.time())
-    z = -z * math.cos(2*math.pi*f*time.time())
+    # x = -x * math.sin(2*math.pi*f*time.time())
+    # y = -y * math.cos(2*math.pi*f*time.time())
+    # z = -z * math.cos(2*math.pi*f*time.time())
 
     leg_1 = computeIKOriented(x, y, z, 0, offsets=offsets)
     leg_2 = computeIKOriented(x, y, z, 1, offsets=offsets)
@@ -466,12 +466,12 @@ def testLine(x, y, z):
     return [leg_1, leg_2, leg_3, leg_4, leg_5, leg_6]
 
 
-def walk(sim_time, duration=1, direction=0, robot_height=0, step_height=0):
+def walk(sim_time, duration=1, direction=0, robot_height=0, step_height=0, step_lenght=0.15, legs_offset=0.02):
 
-    right_legs_offset = 0.02
-    left_legs_offset = -0.02
+    right_legs_offset = legs_offset
+    left_legs_offset = -legs_offset
 
-    step_lengh = 0.15
+    step_lengh = step_lenght
 
     first_group_time = sim_time
     second_group_time = first_group_time+(duration/2)
@@ -486,61 +486,22 @@ def walk(sim_time, duration=1, direction=0, robot_height=0, step_height=0):
     return leg_1, leg_2, leg_3, leg_4, leg_5, leg_6
 
 
-# def walk_turn(sim_time, duration=1, direction=0, rotation=0, robot_height=0, step_height=0, legs_offset=0.02):
+def rotate(sim_time, duration=1, direction=0, robot_height=0, step_height=0):
 
-#     right_legs_offset = legs_offset
-#     left_legs_offset = -legs_offset
+    right_legs_offset = 0.02
+    left_legs_offset = -0.02
 
-#     robot_height = robot_height
+    step_lengh = 0.15
 
-#     step_height = step_height
-#     step_lengh = 0.15
+    first_group_time = sim_time
+    second_group_time = first_group_time+(duration/2)
 
-#     first_group_time = sim_time
-#     second_group_time = first_group_time+(duration/2)
+    leg_1 = new_triangle_walk(first_group_time, duration=duration, direction=math.pi/4,     legs_offset=right_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=0)
+    leg_2 = new_triangle_walk(second_group_time, duration=duration, direction=-math.pi/4,   legs_offset=left_legs_offset, robot_height=robot_height,  step_lenght=-step_lengh, step_height=step_height, legID=1)
+    leg_3 = new_triangle_walk(first_group_time, duration=duration, direction=0,             legs_offset=left_legs_offset, robot_height=robot_height,  step_lenght=-step_lengh, step_height=step_height, legID=2)
+    leg_4 = new_triangle_walk(second_group_time, duration=duration, direction=math.pi/4,    legs_offset=left_legs_offset, robot_height=robot_height,  step_lenght=-step_lengh, step_height=step_height, legID=3)
+    leg_5 = new_triangle_walk(first_group_time, duration=duration, direction=-math.pi/4,    legs_offset=right_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=4)
+    leg_6 = new_triangle_walk(second_group_time, duration=duration, direction=0,            legs_offset=right_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=5)
 
-#     leg_1 = new_triangle_walk(first_group_time, duration=duration,   direction=direction,      legs_offset=right_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=0)
-#     leg_2 = new_triangle_walk(second_group_time, duration=duration,  direction=direction,     legs_offset=left_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=1)
-#     leg_3 = new_triangle_walk(first_group_time, duration=duration,   direction=0,              legs_offset=left_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=2)
-#     leg_4 = new_triangle_walk(second_group_time, duration=duration,  direction=-direction,    legs_offset=left_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=3)
-#     leg_5 = new_triangle_walk(first_group_time, duration=duration,   direction=-direction,     legs_offset=right_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=4)
-#     leg_6 = new_triangle_walk(second_group_time, duration=duration,  direction=0,             legs_offset=right_legs_offset, robot_height=robot_height, step_lenght=step_lengh, step_height=step_height, legID=5)
-
-#     return leg_1, leg_2, leg_3, leg_4, leg_5, leg_6
-
-
-def rotate(t, duration=1):
-
-    orient = False
-
-    right_group = 0.10
-    left_group = right_group
-
-    leg_1 = triangle(right_group, -0.167, 0.05, 0.1, t+duration/2, duration, orient, 0)
-    leg_2 = triangle(left_group, -0.167, 0.05, 0.1, t, duration, orient, 1)
-    leg_3 = triangle(left_group, -0.167, 0.05, 0.1, t+duration/2, duration, orient, 2)
-    leg_4 = triangle(left_group, -0.167, 0.05, 0.1, t, duration, orient, 3)
-    leg_5 = triangle(right_group, -0.167, 0.05, 0.1, t+duration/2, duration, orient, 4)
-    leg_6 = triangle(right_group, -0.167, 0.05, 0.1, t, duration, orient, 5)
 
     return leg_1, leg_2, leg_3, leg_4, leg_5, leg_6
-
-
-def main():
-    print(
-        "0, -90, -90 --> ", computeDK(0, -90, -90, l1=constL1, l2=constL2, l3=constL3)
-    )
-    print("0, 0, 0 --> ", computeDK(0, 0, 0, l1=constL1, l2=constL2, l3=constL3))
-    print("90, 0, 0 --> ", computeDK(90, 0, 0, l1=constL1, l2=constL2, l3=constL3))
-    print(
-        "180, -30.501, -67.819 --> ",
-        computeDK(180, -30.501, -67.819, l1=constL1, l2=constL2, l3=constL3),
-    )
-    print(
-        "0, -30.645, 38.501 --> ",
-        computeDK(0, -30.645, 38.501, l1=constL1, l2=constL2, l3=constL3),
-    )
-
-
-if __name__ == "__main__":
-    main()

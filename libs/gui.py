@@ -3,13 +3,15 @@ from tkinter import Event, StringVar
 import tkinter.ttk as ttk
 
 import time
+from typing import Sequence
+from scipy.spatial.transform import rotation
 
 from setuptools.command.easy_install import main
 import sim_hexa as simhexa
 import math
 
 main_window = tk.Tk()
-main_window.geometry("650x450")
+main_window.geometry("650x550")
 main_window.resizable(False, False)
 main_window.title("Tests sim GUI")
 main_window.columnconfigure(1, weight=1)
@@ -17,6 +19,8 @@ do_sim_tick = True
 walking_speed = 1
 
 walk_label = tk.DoubleVar()
+rotate_label = tk.DoubleVar()
+legs_offset_label = tk.DoubleVar()
 
 robotMode = 'Walk'
 
@@ -50,20 +54,36 @@ def change_direction(event=tk.Event):
 
 def change_mode(event=tk.Event):
     global robotMode
+    global robot_controls_nb
     
     if event.keysym == 'r':
         robotMode = 'Rotate'
     elif event.keysym == 'w':
         robotMode = 'Walk'
+        robot_controls_nb.select(0)
     elif event.keysym == 's':
-        robotMode = 'Static'
+        robotMode = 'Move legs'
+        robot_controls_nb.select(1)
+        center_robot()
+    elif event.keysym == 'b':
+        robotMode = 'Move body'
+        robot_controls_nb.select(2)
         center_robot()
 
-    print(event)
+    #print(event)
 
 def toggle_debug():
     global debug_state
     debug_state = not debug_state
+
+def reset_body_position():
+    global body_xpos
+    global body_ypos
+    global body_zpos
+
+    body_xpos.set(0)
+    body_ypos.set(0)
+    body_zpos.set(0)
 
 
 main_window.bind('<Return>', start_simulation)
@@ -80,11 +100,14 @@ main_window.bind('<KP_9>', change_direction)
 main_window.bind_all('<r>', change_mode)
 main_window.bind_all('<w>', change_mode)
 main_window.bind_all('<s>', change_mode)
+main_window.bind_all('<b>', change_mode)
 
 ### Globals : Widgets ###
 global robot_controls_nb
 global start_sim_button
 global walk_speed_entry
+global step_lenght
+global legs_offset
 global reset_robot_button
 global debug_state_button
 
@@ -94,6 +117,8 @@ rob_stat_pos_text = tk.StringVar()
 rob_stat_orient_text = tk.StringVar()
 rob_stat_frequency_text = tk.StringVar()
 exec_frequency = 0
+global drift_label
+drift_text = tk.StringVar()
 
 global legs_leg1_rb
 global legs_leg2_rb
@@ -106,6 +131,10 @@ legs_legVar.set(0)
 global legs_xpos
 global legs_ypos
 global legs_zpos
+
+global body_xpos
+global body_ypos
+global body_zpos
 
 ### Globals : Robot stats ###
 global walking_direction
@@ -123,6 +152,8 @@ def gui_update_stats():
     global rob_stat_orient_text
     global rob_stat_frequency_text
     global exec_frequency
+    global drift_text
+    global drift
 
     robotPos = sim.getRobotPose()
 
@@ -130,6 +161,11 @@ def gui_update_stats():
     rob_stat_pos_text.set("Real Position : X = {:.3f} m | Y = {:.3f} m | Z = {:.3f} m".format(robotPos[0][0], robotPos[0][1], robotPos[0][2]))
     rob_stat_orient_text.set("Orientation : Roll = {:.2f}° | Pitch = {:.2f}° | Yaw = {:.2f}°".format((robotPos[1][0]*360/(2*math.pi)), (robotPos[1][1]*360/(2*math.pi)), (robotPos[1][2]*360/(2*math.pi))))
     rob_stat_frequency_text.set("Processing Frequency : {:.2f} Hz".format(exec_frequency))
+
+    if drift:
+        drift_text.set("Drift = YES !!")
+    else:
+        drift_text.set("Drift = No")
 
 def gui_give_weight(widget, row=0, col=0):
     for i in range(0, row):
@@ -142,11 +178,13 @@ def gui_build():
     global robot_controls_nb
     global start_sim_button
     global walk_speed_entry
+    global step_lenght
     global walking_direction
     global robot_height
     global step_height
     global reset_robot_button
     global debug_state_button
+    global legs_offset
 
     global robot_stats_group
     global rob_stat_mode_label
@@ -156,6 +194,9 @@ def gui_build():
     global rob_stat_orient_text
     global rob_stat_frequency_text
     global frozen_robot_state
+    global drift_label
+    global drift_text
+    global drift
 
     global legs_leg1_rb
     global legs_leg2_rb
@@ -168,19 +209,31 @@ def gui_build():
     global legs_ypos
     global legs_zpos
 
+    global body_xpos
+    global body_ypos
+    global body_zpos
+
     robot_controls_nb = ttk.Notebook(main_window)
     tab_walk_params = ttk.Frame(robot_controls_nb)
 
     tab_leg_params = ttk.Frame(robot_controls_nb)
     gui_give_weight(tab_leg_params, row=5, col=2)
 
+    tab_body_params = ttk.Frame(robot_controls_nb)
+    gui_give_weight(tab_body_params, row=4, col=1)
+
     robot_controls_nb.add(tab_walk_params, text="Walk")
     robot_controls_nb.add(tab_leg_params, text="Move leg")
+    robot_controls_nb.add(tab_body_params, text="Move body")
 
     ### Walk Mode ###
     start_sim_button = ttk.Button(tab_walk_params, text="Start Simulation", command=lambda: start_simulation())
-    walk_speed_entry = tk.Scale(tab_walk_params, from_=0.01, to=3, resolution=0.01, variable=walk_label, orient='horizontal')
-    walking_direction = tk.Scale(tab_walk_params, from_=0, to=2*math.pi, resolution=(2*math.pi/360), orient='horizontal')
+    walk_speed_entry = tk.Scale(tab_walk_params, from_=0.01, to=3, resolution=0.01, variable=walk_label, orient='horizontal', label='Speed :')
+    step_lenght = tk.Scale(tab_walk_params, from_=0, to=0.25, resolution=0.01, variable=rotate_label, orient='horizontal', label='Step width :')
+    step_lenght.set(0.15)
+    legs_offset = tk.Scale(tab_walk_params, from_=-0.1, to=0.1, resolution=0.01, variable=legs_offset_label, orient='horizontal', label='Legs offset :')
+    legs_offset.set(0.02)
+    walking_direction = tk.Scale(tab_walk_params, from_=0, to=2*math.pi, resolution=(2*math.pi/360), orient='horizontal', label='Direction :')
     robot_height = tk.Scale(tab_walk_params, from_=0, to=0.1, resolution=0.01, orient='vertical')
     robot_height.set(0.05)
     step_height = tk.Scale(tab_walk_params, from_=0.0, to=0.13, resolution=0.01, orient='vertical')
@@ -199,12 +252,19 @@ def gui_build():
     legs_ypos = tk.Scale(tab_leg_params, from_=-0.2, to_=0.2, resolution=0.01, orient='horizontal', label="Target y :")
     legs_zpos = tk.Scale(tab_leg_params, from_=-0.2, to_=0.2, resolution=0.01, orient='horizontal', label="Target z :")
 
+    ### Move body Mode ###
+    body_xpos = tk.Scale(tab_body_params, from_=-0.2, to_=0.2, resolution=0.01, orient='horizontal', label="Target x :")
+    body_ypos = tk.Scale(tab_body_params, from_=-0.2, to_=0.2, resolution=0.01, orient='horizontal', label="Target y :")
+    body_zpos = tk.Scale(tab_body_params, from_=-0.2, to_=0.2, resolution=0.01, orient='horizontal', label="Target z :")
+    body_reset = ttk.Button(tab_body_params, text="Reset position", command=lambda: reset_body_position())
+
     ### Mapping stats ###
     robot_stats_group = tk.LabelFrame(main_window, text="Robot Statistics", relief='sunken', padx=5, pady=5)
     rob_stat_mode_label = ttk.Label(robot_stats_group, textvariable=rob_stat_mode_text)
     rob_stat_pos_label = ttk.Label(robot_stats_group, textvariable=rob_stat_pos_text)
     rob_stat_orient_label = ttk.Label(robot_stats_group, textvariable=rob_stat_orient_text)
     rob_stat_frequency_label = ttk.Label(robot_stats_group, textvariable=rob_stat_frequency_text)
+    drift_label = ttk.Label(robot_stats_group, textvariable=drift_text)
 
     ### Global widgets ###
     reset_robot_button = ttk.Button(main_window, text="Reset Robot", command=lambda: center_robot())
@@ -216,9 +276,11 @@ def gui_build():
 
     start_sim_button.grid(padx=20, pady=20)
     walk_speed_entry.grid(row=1, column=0, padx=20, pady=10)
-    walking_direction.grid(row=2, column=0, padx=20, pady=10)
+    step_lenght.grid(row=2, column=0, padx=20, pady=10)
+    walking_direction.grid(row=3, column=0, padx=20, pady=10)
     robot_height.grid(row=1, column=1)
     step_height.grid(row=2, column=1)
+    legs_offset.grid(row=4, column=0)
 
 
     legs_front_label.grid(row=0, column=0, columnspan=2)
@@ -235,6 +297,10 @@ def gui_build():
     legs_ypos.grid(row=legs_cursors_baserow+1, column=0, columnspan=2, sticky='ew')
     legs_zpos.grid(row=legs_cursors_baserow+2, column=0, columnspan=2, sticky='ew')
 
+    body_xpos.grid(row=0, column=0, sticky='ew')
+    body_ypos.grid(row=1, column=0, sticky='ew')
+    body_zpos.grid(row=2, column=0, sticky='ew')
+    body_reset.grid(row=3, column=0, sticky='ew')
     
     ### Global widgets ###
     reset_robot_button.grid(row=1, column=0, padx=5, pady=5, columnspan=2, sticky='ew')
@@ -246,6 +312,8 @@ def gui_build():
     rob_stat_pos_label.grid(row=1, column=0, sticky='nw')
     rob_stat_orient_label.grid(row=2, column=0, sticky='nw')
     rob_stat_frequency_label.grid(row=3, column=0, sticky='nw')
+    drift_label.grid(row=4, column=0, sticky='nw')
+
     robot_stats_group.grid(row=0, column=1, padx=5, pady=5, sticky='nesw')
 
 
@@ -259,7 +327,13 @@ walk_speed_entry.set(1.5)
 sim_start_time = time.time()
 old_refresh_time = 0
 
+local_debug=False
+send_drift=False
+
+drift = False
+
 while True:
+
     entry_time = time.time() - sim_start_time
 
     main_window.update()
@@ -268,31 +342,52 @@ while True:
     
     if do_sim_tick == True:
         if robotMode == 'Walk':
-            simhexa.walk(sim, targets, 
-                        speed=float(walk_speed_entry.get()), 
+            drift = simhexa.walk(sim, targets, 
+                        speed=float(walk_speed_entry.get()),
+                        step_lenght=float(step_lenght.get()),
                         direction=float(walking_direction.get()), 
                         robot_height=float(robot_height.get()), 
-                        step_height=float(step_height.get()), 
-                        debug=debug_state,
-                        frozen=frozen)
+                        step_height=float(step_height.get()),
+                        debug=local_debug,
+                        frozen=frozen,
+                        send_drift=send_drift,
+                        legs_offset=legs_offset.get())
 
 
         elif robotMode == 'Rotate':
-            simhexa.rotate(sim, targets, debug=debug_state, frozen=frozen)
+            simhexa.rotate(sim, targets, 
+                            speed=float(walk_speed_entry.get()), 
+                            direction=float(walking_direction.get()), 
+                            robot_height=float(robot_height.get()), 
+                            step_height=float(step_height.get()), 
+                            debug=local_debug,
+                            frozen=frozen)
 
-        elif robotMode == 'Static':
-            simhexa.static(sim, targets,
+        elif robotMode == 'Move legs':
+            simhexa.move_legs(sim, targets,
                            legID=legs_legVar.get(), 
                            leg_target_x=legs_xpos.get(), 
                            leg_target_y=legs_ypos.get(), 
                            leg_target_z=legs_zpos.get(), 
-                           debug=debug_state,
+                           debug=local_debug,
+                           frozen=frozen)
+
+        elif robotMode == 'Move body':
+            simhexa.move_body(sim, targets,
+                           body_target_x=body_xpos.get(), 
+                           body_target_y=body_ypos.get(), 
+                           body_target_z=body_zpos.get(), 
+                           debug=local_debug,
                            frozen=frozen)
 
     exit_time = time.time() - sim_start_time
 
     if (time.time() - old_refresh_time >= 0.1):
+        if debug_state:
+            local_debug = not local_debug
         exec_frequency = 1/(exit_time-entry_time)
         gui_update_stats()
+
+        send_drift = not send_drift
         
         old_refresh_time = time.time()
